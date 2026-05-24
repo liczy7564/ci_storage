@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>修改 — 靈感收納所</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .img-thumb { width: 100%; border-radius: var(--radius-sm); object-fit: cover; max-height: 180px; display: none; }
+  .img-thumb.show { display: block; }
+  .edit-list-wrap { display: flex; flex-direction: column; gap: 10px; }
+
+  /* Select item to edit */
+  .edit-picker {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .edit-picker-header {
+    padding: 12px 14px;
+    font-size: .85rem;
+    font-weight: 500;
+    color: var(--text2);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+  .edit-pick-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background .12s;
+  }
+  .edit-pick-item:last-child { border-bottom: none; }
+  .edit-pick-item:hover { background: var(--bg2); }
+  .edit-pick-item.selected { background: #F0E8DC; }
+  .edit-pick-thumb {
+    width: 40px; height: 40px; border-radius: 8px;
+    background: var(--bg2); flex-shrink: 0;
+    overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+  }
+  .edit-pick-thumb img { width:100%; height:100%; object-fit:cover; }
+  .edit-pick-info { flex: 1; min-width: 0; }
+  .edit-pick-title { font-size: .83rem; font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .edit-pick-sub   { font-size: .72rem; color: var(--text3); margin-top: 2px; }
+
+  .form-section { display: none; }
+  .form-section.visible { display: flex; }
+
+  .hint { font-size: .74rem; color: var(--text3); margin-top: 3px; }
+  .search-pick { padding: 8px 14px; border-bottom: 1px solid var(--border); }
+  .search-pick input {
+    width:100%; border:1px solid var(--border); border-radius:var(--radius-sm);
+    padding:7px 10px; font-family:inherit; font-size:.83rem;
+    color:var(--text); outline:none; background:var(--bg);
+  }
+  .search-pick input:focus { border-color: var(--accent2); }
+</style>
+</head>
+<body>
+<div class="app-wrap">
+
+  <header class="topbar">
+    <button class="topbar-icon" onclick="handleBack()" title="返回">←</button>
+    <div class="topbar-title" id="topTitle">選擇要修改的項目</div>
+  </header>
+
+  <main class="page-body">
+
+    <!-- Step 1: picker -->
+    <div class="edit-picker" id="pickerWrap">
+      <div class="edit-picker-header">請選擇要修改的資訊卡片</div>
+      <div class="search-pick">
+        <input type="search" id="pickSearch" placeholder="搜尋…" oninput="filterPicker()">
+      </div>
+      <div id="pickList"></div>
+    </div>
+
+    <!-- Step 2: form (hidden until item selected) -->
+    <div class="form-section" id="editForm">
+
+      <div class="form-group">
+        <label class="form-label">📷 圖片</label>
+        <div class="upload-area" id="uploadArea">
+          <input type="file" accept="image/*" id="imgInput">
+          <span class="up-icon" id="upIcon">📂</span>
+          <span class="up-text" id="upText">點擊更換圖片</span>
+          <img id="imgThumb" class="img-thumb" alt="預覽">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">🔗 原始網址</label>
+        <input class="form-input" type="url" id="urlInput" placeholder="https://…">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">📂 主分類</label>
+        <select class="form-select" id="catSelect">
+          <option value="ai">AI</option>
+          <option value="paper">論文</option>
+          <option value="beauty">美妝</option>
+          <option value="buy">想買</option>
+          <option value="other">其他</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">📝 標題</label>
+        <input class="form-input" type="text" id="titleInput">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">💬 簡介</label>
+        <textarea class="form-textarea" id="summaryInput" style="min-height:90px;"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">📌 來源</label>
+        <select class="form-select" id="sourceSelect">
+          <option value="IG">IG</option>
+          <option value="文章">文章</option>
+          <option value="YouTube">YouTube</option>
+          <option value="Twitter">Twitter / X</option>
+          <option value="其他">其他</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">📅 日期</label>
+        <input class="form-input" type="date" id="dateInput">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">🏷 標籤</label>
+        <div class="tags-input-wrap" id="tagsWrap" onclick="document.getElementById('tagTyping').focus()">
+          <input id="tagTyping" type="text" placeholder="Enter 新增">
+        </div>
+        <p class="hint">按 Enter 或空白鍵新增；點 × 刪除</p>
+      </div>
+
+      <div class="form-group" style="flex-direction:row;align-items:center;gap:10px;">
+        <input type="checkbox" id="starredCheck" style="width:16px;height:16px;accent-color:var(--accent);">
+        <label for="starredCheck" class="form-label" style="margin:0;cursor:pointer;">⭐ 標記為重要</label>
+      </div>
+
+    </div>
+
+    <button class="btn-submit" id="saveBtn" style="display:none;" onclick="saveEdit()">✓ 儲存修改</button>
+    <button class="btn-danger" id="deleteBtn" style="display:none;" onclick="deleteItem()">🗑 刪除此筆資料</button>
+
+  </main>
+
+  <nav class="bottom-nav">
+    <a class="nav-item" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      總覽
+    </a>
+    <a class="nav-item" href="add.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      新增
+    </a>
+    <a class="nav-item active" href="edit.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      修改
+    </a>
+    <a class="nav-item" href="date.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      時間
+    </a>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { getAll, getById, update, remove, CAT_MAP } from './data.js';
+
+let allData = [];
+let selectedId = null;
+let imgBase64 = '';
+const tags = [];
+
+/* ── init ── */
+// allData = getAll();
+allData = await getAll({ forceRefresh: true });
+
+// Check if navigated from card click (?id=...)
+const urlParams = new URLSearchParams(location.search);
+const initId = urlParams.get('id');
+if (initId) {
+  renderPicker();
+  selectItem(initId);
+} else {
+  renderPicker();
+}
+
+/* ── picker ── */
+function renderPicker(filter='') {
+  const list = allData.filter(r =>
+    !filter || (r.title||'').toLowerCase().includes(filter.toLowerCase())
+  );
+  const wrap = document.getElementById('pickList');
+  wrap.innerHTML = list.map(r => `
+    <div class="edit-pick-item ${r.id===selectedId?'selected':''}" data-id="${r.id}">
+      <div class="edit-pick-thumb">
+        ${r.image ? `<img src="${r.image}" alt="">` : '📷'}
+      </div>
+      <div class="edit-pick-info">
+        <div class="edit-pick-title">${r.title||'（無標題）'}</div>
+        <div class="edit-pick-sub">${CAT_MAP[r.category]?.label||r.category} · ${r.date||r.createdAt||''}</div>
+      </div>
+      ${r.starred ? '<span style="color:var(--star);font-size:.9rem;">★</span>' : ''}
+    </div>
+  `).join('') || '<div style="padding:16px;font-size:.83rem;color:var(--text3);text-align:center;">找不到符合項目</div>';
+
+  wrap.querySelectorAll('.edit-pick-item').forEach(el => {
+    el.onclick = () => selectItem(el.dataset.id);
+  });
+}
+
+window.filterPicker = function() {
+  renderPicker(document.getElementById('pickSearch').value);
+};
+
+function selectItem(id) {
+  selectedId = id;
+  const r = getById(id);
+  if (!r) return;
+
+  renderPicker(document.getElementById('pickSearch').value);
+
+  document.getElementById('topTitle').textContent = '修改資訊';
+  document.getElementById('editForm').classList.add('visible');
+  document.getElementById('saveBtn').style.display = 'block';
+  document.getElementById('deleteBtn').style.display = 'block';
+
+  // fill form
+  imgBase64 = r.image || '';
+  if (imgBase64) {
+    document.getElementById('imgThumb').src = imgBase64;
+    document.getElementById('imgThumb').classList.add('show');
+    document.getElementById('upIcon').style.display = 'none';
+    document.getElementById('upText').style.display = 'none';
+  }
+  document.getElementById('urlInput').value    = r.url || '';
+  document.getElementById('catSelect').value   = r.category || 'other';
+  document.getElementById('titleInput').value  = r.title || '';
+  document.getElementById('summaryInput').value = r.summary || '';
+  document.getElementById('sourceSelect').value = r.source || '';
+  document.getElementById('dateInput').value   = r.date || r.createdAt || '';
+  document.getElementById('starredCheck').checked = !!r.starred;
+
+  tags.length = 0;
+  (r.tags||[]).forEach(t => tags.push(t));
+  renderTags();
+
+  // scroll form into view
+  setTimeout(() => document.getElementById('editForm').scrollIntoView({ behavior:'smooth', block:'start' }), 100);
+}
+
+/* ── image ── */
+document.getElementById('imgInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    imgBase64 = ev.target.result;
+    document.getElementById('imgThumb').src = imgBase64;
+    document.getElementById('imgThumb').classList.add('show');
+    document.getElementById('upIcon').style.display = 'none';
+    document.getElementById('upText').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ── tags ── */
+const tagsWrap = document.getElementById('tagsWrap');
+const tagTyping = document.getElementById('tagTyping');
+tagTyping.addEventListener('keydown', e => {
+  if (e.key==='Enter'||e.key===' ') { e.preventDefault(); addTag(tagTyping.value.trim().replace(/^#/,'')); tagTyping.value=''; }
+  else if (e.key==='Backspace'&&tagTyping.value===''&&tags.length) { removeTag(tags[tags.length-1]); }
+});
+function addTag(t) { if(!t||tags.includes(t)) return; tags.push(t); renderTags(); }
+function removeTag(t) { const i=tags.indexOf(t); if(i>-1) tags.splice(i,1); renderTags(); }
+function renderTags() {
+  tagsWrap.querySelectorAll('.tag-pill').forEach(p=>p.remove());
+  tags.forEach(t => {
+    const pill=document.createElement('span'); pill.className='tag-pill';
+    pill.innerHTML=`${t}<button onclick="window._removeTag('${t}')">×</button>`;
+    tagsWrap.insertBefore(pill, tagTyping);
+  });
+}
+window._removeTag = t => removeTag(t);
+
+/* ── save / delete ── */
+window.saveEdit = function() {
+  if (!selectedId) return;
+  const title = document.getElementById('titleInput').value.trim();
+  if (!title) { showToast('請輸入標題'); return; }
+  update(selectedId, {
+    image:    imgBase64,
+    url:      document.getElementById('urlInput').value.trim(),
+    category: document.getElementById('catSelect').value,
+    title,
+    summary:  document.getElementById('summaryInput').value.trim(),
+    source:   document.getElementById('sourceSelect').value,
+    date:     document.getElementById('dateInput').value,
+    tags:     [...tags],
+    starred:  document.getElementById('starredCheck').checked,
+  });
+  showToast('✅ 已儲存！');
+  setTimeout(() => location.href='index.html', 900);
+};
+
+window.deleteItem = function() {
+  if (!selectedId) return;
+  if (!confirm('確定要刪除這筆資料？此動作無法復原。')) return;
+  remove(selectedId);
+  showToast('🗑 已刪除');
+  setTimeout(() => location.href='index.html', 900);
+};
+
+window.handleBack = function() {
+  if (document.getElementById('editForm').classList.contains('visible')) {
+    document.getElementById('editForm').classList.remove('visible');
+    document.getElementById('saveBtn').style.display='none';
+    document.getElementById('deleteBtn').style.display='none';
+    document.getElementById('topTitle').textContent='選擇要修改的項目';
+    selectedId=null;
+    renderPicker();
+  } else {
+    history.back();
+  }
+};
+
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),1800);
+}
+</script>
+</body>
+</html>

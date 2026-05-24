@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>時間 — 靈感收納所</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  /* ── calendar cell overrides ── */
+  .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); padding: 0 8px 8px; gap: 4px; }
+  .cal-dow  { text-align:center; font-size:.72rem; color:var(--text3); padding:6px 0 4px; border-bottom:none; letter-spacing:.04em; }
+  .cal-nav  { width:34px; height:34px; border-radius:10px; background:var(--bg2); border:none; cursor:pointer; color:var(--text2); font-size:1rem; display:flex; align-items:center; justify-content:center; transition:background .15s; }
+  .cal-nav:hover { background:var(--bg3); }
+
+  .cal-cell {
+    aspect-ratio: 1;
+    border-radius: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; transition: background .12s, transform .1s;
+    border: none; padding: 0; min-height: unset; background: transparent;
+  }
+  .cal-cell:hover { background: var(--bg2); }
+  .day-num { font-size:.85rem; color:var(--text2); width:auto; height:auto; display:block; line-height:1; }
+  .cal-cell.other-month .day-num { color:var(--text3); }
+
+  /* has records → mint */
+  .cal-cell.has-records           { background:#C8E6C8; }
+  .cal-cell.has-records .day-num  { color:#3A6B3A; font-weight:500; }
+  .cal-cell.has-records:hover     { background:#B0D8B0; }
+  .day-count { font-size:.65rem; color:#3A6B3A; line-height:1; margin-top:3px; }
+
+  /* today → amber */
+  .cal-cell.today                 { background:#F5DEC0 !important; }
+  .cal-cell.today .day-num        { color:#8B5A1A !important; font-weight:500; }
+  .cal-cell.today .day-count      { color:#8B5A1A !important; }
+  .cal-cell.today:hover           { background:#EDD0A8 !important; }
+
+  /* selected */
+  .cal-cell.selected              { background:#9FD4A0 !important; transform:scale(.95); }
+  .cal-cell.selected .day-num     { color:#285028 !important; font-weight:500; }
+
+  /* day detail */
+  .day-detail { border-top:1px solid var(--border); padding:14px; }
+  .day-detail-title { font-size:.82rem; font-weight:500; color:var(--text2); margin-bottom:10px; }
+  .day-detail-list  { display:flex; flex-direction:column; gap:8px; }
+  .no-day { font-size:.82rem; color:var(--text3); text-align:center; padding:20px 0; }
+
+  .month-summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .month-stat {
+    display: flex; flex-direction: column; align-items: center;
+    flex: 1; min-width: 64px;
+  }
+  .month-stat .stat-num  { font-size: 1.25rem; font-weight: 500; color: var(--text); }
+  .month-stat .stat-label{ font-size: .68rem;  color: var(--text3); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="app-wrap">
+
+  <header class="topbar">
+    <button class="topbar-icon" onclick="history.back()" title="返回">←</button>
+    <div class="topbar-title">時間軸</div>
+    <button class="topbar-icon" onclick="goToday()" title="今天" style="font-size:.72rem;font-weight:500;width:auto;padding:0 8px;border-radius:8px;">今天</button>
+  </header>
+
+  <main class="page-body">
+
+    <!-- month summary -->
+    <div class="month-summary" id="monthSummary">
+      <div class="month-stat"><div class="stat-num" id="totalCount">0</div><div class="stat-label">本月總計</div></div>
+       </div>
+
+    <!-- calendar -->
+    <div class="cal-wrap">
+      <div class="cal-header">
+        <button class="cal-nav" onclick="prevMonth()">‹</button>
+        <div class="cal-title" id="calTitle"></div>
+        <button class="cal-nav" onclick="nextMonth()">›</button>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+      <!-- day detail -->
+      <div class="day-detail" id="dayDetail" style="display:none;">
+        <div class="day-detail-title" id="dayDetailTitle"></div>
+        <div class="day-detail-list" id="dayDetailList"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <nav class="bottom-nav">
+    <a class="nav-item" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      總覽
+    </a>
+    <a class="nav-item" href="add.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      新增
+    </a>
+    <a class="nav-item" href="edit.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      修改
+    </a>
+    <a class="nav-item active" href="date.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      時間
+    </a>
+  </nav>
+</div>
+
+<script type="module">
+import { getAll, CAT_MAP } from './data.js';
+
+const DOW = ['日','一','二','三','四','五','六'];
+const MONTHS_TW = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+
+// let allData = getAll();
+let allData = [];
+const today = new Date();
+let viewYear  = today.getFullYear();
+let viewMonth = today.getMonth(); // 0-indexed
+let selectedDate = null;
+
+/* build a map: "YYYY-MM-DD" → records[] */
+function buildDateMap() {
+  const map = {};
+  allData.forEach(r => {
+    const key = (r.date||r.createdAt||'').slice(0,10).replace(/\//g,'-');
+    if (!key) return;
+    if (!map[key]) map[key] = [];
+    map[key].push(r);
+  });
+  return map;
+}
+
+/* ── render calendar ── */
+function renderCalendar() {
+  const dateMap = buildDateMap();
+  const titleEl = document.getElementById('calTitle');
+  titleEl.textContent = `${viewYear} ${MONTHS_TW[viewMonth]}`;
+
+  const grid = document.getElementById('calGrid');
+
+  // DOW headers
+  const dowHtml = DOW.map(d => `<div class="cal-dow">${d}</div>`).join('');
+
+  // first day of month
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+  const prevDays = new Date(viewYear, viewMonth, 0).getDate();
+
+  let cells = '';
+
+  // prev month filler
+  for (let i = firstDay - 1; i >= 0; i--) {
+    cells += `<div class="cal-cell other-month"><div class="day-num">${prevDays - i}</div></div>`;
+  }
+
+  // current month
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${viewYear}-${String(viewMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayRecords = dateMap[key] || [];
+    const count    = dayRecords.length;
+    const isToday  = viewYear===today.getFullYear() && viewMonth===today.getMonth() && d===today.getDate();
+    const isSel    = selectedDate === key;
+    const hasRec   = count > 0;
+
+    const classes = [
+      'cal-cell',
+      hasRec   ? 'has-records' : '',
+      isToday  ? 'today'       : '',
+      isSel    ? 'selected'    : '',
+    ].filter(Boolean).join(' ');
+
+    cells += `<div class="${classes}" data-key="${key}" onclick="selectDay('${key}')">
+      <div class="day-num">${d}</div>
+      ${hasRec ? `<div class="day-count">${count}</div>` : ''}
+    </div>`;
+  }
+
+  // next month filler
+  const total = firstDay + daysInMonth;
+  const remaining = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (let d = 1; d <= remaining; d++) {
+    cells += `<div class="cal-cell other-month"><div class="day-num">${d}</div></div>`;
+  }
+
+  grid.innerHTML = dowHtml + cells;
+
+  // update month summary
+  const monthPrefix = `${viewYear}-${String(viewMonth+1).padStart(2,'0')}`;
+  const monthRecords = allData.filter(r => {
+    const k = (r.date||r.createdAt||'').slice(0,7).replace(/\//g,'-');
+    return k === monthPrefix;
+  });
+  // document.getElemenntBytById('totalCount').textContent  = monthRecords.length;
+  // document.getElementById('aiCount').textContent     = monthRecords.filter(r=>r.category==='ai').length;
+  // document.getElementById('paperCount').textContent  = monthRecords.filter(r=>r.category==='paper').length;
+  // document.getElementById('beautyCount').textContent = monthRecords.filter(r=>r.category==='beauty').length;
+  // document.getElemeId('buyCount').textContent    = monthRecords.filter(r=>r.category==='buy').length;
+  document.getElementById('totalCount').textContent = monthRecords.length;
+
+// re-select if day still visible
+if (selectedDate) showDayDetail(selectedDate, dateMap[selectedDate]||[]);
+  // re-select if day still visible
+  // if (selectedDate) showDayDetail(selectedDate, dateMap[selectedDate]||[]);
+}
+
+/* ── day detail ── */
+window.selectDay = function(key) {
+  const dateMap = buildDateMap();
+  if (selectedDate === key) {
+    // toggle off
+    selectedDate = null;
+    document.getElementById('dayDetail').style.display = 'none';
+    renderCalendar();
+    return;
+  }
+  selectedDate = key;
+  renderCalendar();
+  showDayDetail(key, dateMap[key]||[]);
+};
+
+function showDayDetail(key, records) {
+  const panel = document.getElementById('dayDetail');
+  const [y,m,d] = key.split('-');
+  document.getElementById('dayDetailTitle').textContent = `${parseInt(m)}月${parseInt(d)}日 新增 ${records.length} 項`;
+  const list = document.getElementById('dayDetailList');
+
+  if (records.length === 0) {
+    list.innerHTML = '<div class="no-day">這天沒有紀錄</div>';
+  } else {
+    list.innerHTML = records.map(r => {
+      const cat = CAT_MAP[r.category]||CAT_MAP.other;
+      const imgHtml = r.image
+        ? `<img src="${r.image}" alt="">`
+        : '📷';
+      return `<div class="mini-card" onclick="location.href='edit.html?id=${r.id}'">
+        <div class="mini-card-img">${imgHtml}</div>
+        <div class="mini-card-body">
+          <div class="mini-card-title">${r.title||'（無標題）'}</div>
+          <div class="mini-card-sub">
+            <span class="cat-badge ${cat.cls}" style="font-size:.65rem;padding:1px 6px;">${cat.label}</span>
+            ${r.source ? ' · ' + r.source : ''}
+            ${r.starred ? ' · ★' : ''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  panel.style.display = 'block';
+  setTimeout(() => panel.scrollIntoView({ behavior:'smooth', block:'nearest' }), 80);
+}
+
+/* ── nav ── */
+window.prevMonth = function() {
+  viewMonth--;
+  if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+  selectedDate = null;
+  document.getElementById('dayDetail').style.display='none';
+  renderCalendar();
+};
+window.nextMonth = function() {
+  viewMonth++;
+  if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+  selectedDate = null;
+  document.getElementById('dayDetail').style.display='none';
+  renderCalendar();
+};
+window.goToday = function() {
+  viewYear = today.getFullYear(); viewMonth = today.getMonth();
+  selectedDate = null;
+  document.getElementById('dayDetail').style.display='none';
+  renderCalendar();
+};
+
+/* ── init ── */
+(async () => {
+  allData = await getAll({ forceRefresh: true });
+  renderCalendar();
+})();
+</script>
+</body>
+</html>

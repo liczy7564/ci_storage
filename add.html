@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新增 — 靈感收納所</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  /* ── Upload Zone ── */
+  .upload-zone {
+    border: 2px dashed var(--border2);
+    border-radius: var(--radius-lg);
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+  .upload-zone:hover,
+  .upload-zone.drag-over { border-color: var(--accent); background: var(--bg2); }
+  .upload-zone input[type=file] {
+    position: absolute; inset: 0;
+    opacity: 0; cursor: pointer;
+    width: 100%; height: 100%;
+  }
+  .upload-zone .up-icon { font-size: 2.4rem; line-height: 1; }
+  .upload-zone .up-title {
+    font-size: .95rem; font-weight: 500; color: var(--text2);
+  }
+  .upload-zone .up-hint {
+    font-size: .75rem; color: var(--text3);
+  }
+  .upload-zone .up-preview {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    position: absolute; inset: 0;
+    display: none;
+  }
+  .upload-zone.has-img .up-preview { display: block; }
+  .upload-zone.has-img .up-icon,
+  .upload-zone.has-img .up-title,
+  .upload-zone.has-img .up-hint { display: none; }
+
+  /* overlay badge on preview */
+  .preview-overlay {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 8px 12px;
+    background: linear-gradient(transparent, rgba(0,0,0,.5));
+    color: #fff; font-size: .75rem;
+    display: none;
+    align-items: center; gap: 6px;
+  }
+  .upload-zone.has-img .preview-overlay { display: flex; }
+  .preview-overlay button {
+    margin-left: auto;
+    background: rgba(255,255,255,.2);
+    border: 1px solid rgba(255,255,255,.4);
+    border-radius: 8px;
+    color: #fff; font-size: .72rem;
+    padding: 2px 10px; cursor: pointer;
+  }
+  .preview-overlay button:hover { background: rgba(255,255,255,.35); }
+
+  /* ── URL field ── */
+  .url-wrap {
+    position: relative;
+  }
+  .url-wrap .url-prefix {
+    position: absolute; left: 12px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--text3); font-size: .85rem;
+    pointer-events: none;
+  }
+  .url-wrap input {
+    padding-left: 36px !important;
+  }
+
+  /* ── Status card ── */
+  .status-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .status-card.show { display: flex; }
+  .status-row {
+    display: flex; align-items: center; gap: 10px;
+    font-size: .82rem; color: var(--text2);
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--border2); flex-shrink: 0;
+    transition: background .3s;
+  }
+  .status-dot.done  { background: #4CAF50; }
+  .status-dot.active { background: var(--accent); animation: pulse .8s ease infinite alternate; }
+  .status-dot.error { background: #E53935; }
+  @keyframes pulse { from { opacity:.4; } to { opacity:1; } }
+
+  /* ── Submit button variants ── */
+  .btn-submit-wrap { display: flex; flex-direction: column; gap: 8px; }
+  .btn-submit {
+    width: 100%; padding: 15px;
+    background: var(--accent);
+    color: #fff; border: none;
+    border-radius: var(--radius);
+    font-family: inherit; font-size: 1rem;
+    font-weight: 500; letter-spacing: .04em;
+    cursor: pointer; transition: background .15s, transform .1s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-submit:hover { background: var(--accent2); }
+  .btn-submit:active { transform: scale(.98); }
+  .btn-submit:disabled { opacity: .55; pointer-events: none; }
+
+  .btn-spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    display: none;
+  }
+  .btn-submit.loading .btn-spinner { display: block; }
+  .btn-submit.loading .btn-label::after { content: '處理中…'; }
+  .btn-submit:not(.loading) .btn-label::after { content: '送出截圖'; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* success state */
+  .btn-submit.success {
+    background: #4CAF50;
+    pointer-events: none;
+  }
+
+  /* ── Section heading ── */
+  .section-label {
+    font-size: .72rem; font-weight: 500;
+    color: var(--text3); letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<div class="app-wrap">
+
+  <header class="topbar">
+    <button class="topbar-icon" onclick="history.back()" title="返回">←</button>
+    <div class="topbar-title">新增截圖</div>
+  </header>
+
+  <main class="page-body">
+
+    <!-- 圖片上傳 -->
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <span class="section-label">截圖上傳</span>
+      <div class="upload-zone" id="uploadZone">
+        <!-- <input type="file" accept="image/*" id="imgInput" capture="environment"> -->
+        <input type="file" accept="image/*" id="imgInput">
+        <span class="up-icon">📸</span>
+        <span class="up-title">點擊上傳截圖</span>
+        <span class="up-hint">支援 JPG、PNG、WEBP</span>
+        <img id="imgPreview" class="up-preview" alt="預覽">
+        <div class="preview-overlay">
+          <span id="previewName">圖片已選取</span>
+          <button onclick="clearImage(event)">重新選擇</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 網址（選填） -->
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <span class="section-label">原始連結（選填）</span>
+      <div class="url-wrap">
+        <span class="url-prefix">🔗</span>
+        <input class="form-input" type="url" id="urlInput" placeholder="https://…">
+      </div>
+    </div>
+
+    <!-- 狀態卡片 -->
+    <div class="status-card" id="statusCard">
+      <div class="status-row">
+        <div class="status-dot" id="s1"></div>
+        <span id="s1-text">等待送出…</span>
+      </div>
+      <div class="status-row">
+        <div class="status-dot" id="s2"></div>
+        <span id="s2-text">等待 Ollama 辨識圖片…</span>
+      </div>
+      <div class="status-row">
+        <div class="status-dot" id="s3"></div>
+        <span id="s3-text">等待寫入 Notion…</span>
+      </div>
+    </div>
+
+    <!-- 送出按鈕 -->
+    <div class="btn-submit-wrap">
+      <button class="btn-submit" id="submitBtn" onclick="submitForm()">
+        <div class="btn-spinner"></div>
+        <span class="btn-label"></span>
+      </button>
+    </div>
+
+  </main>
+
+  <nav class="bottom-nav">
+    <a class="nav-item" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      總覽
+    </a>
+    <a class="nav-item active" href="add.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      新增
+    </a>
+    <a class="nav-item" href="edit.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      修改
+    </a>
+    <a class="nav-item" href="date.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      時間
+    </a>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ─────────────────────────────────────────
+   ⚙️  設定：改成你的 n8n Webhook URL
+───────────────────────────────────────── */
+// const N8N_WEBHOOK_URL = 'http://localhost:5678/webhook-test/add-screenshot';
+const N8N_WEBHOOK_URL = 'https://trademark-brief-cardiff-skirt.trycloudflare.com/webhook/add-screenshot_1';
+
+/* ── Image handling ── */
+let imgBase64 = '';
+let imgMimeType = 'image/jpeg';
+
+const imgInput   = document.getElementById('imgInput');
+const imgPreview = document.getElementById('imgPreview');
+const uploadZone = document.getElementById('uploadZone');
+
+imgInput.addEventListener('change', () => {
+  const file = imgInput.files[0];
+  if (!file) return;
+  imgMimeType = file.type || 'image/jpeg';
+  document.getElementById('previewName').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    imgBase64 = e.target.result; // full data URL
+    imgPreview.src = imgBase64;
+    uploadZone.classList.add('has-img');
+  };
+  reader.readAsDataURL(file);
+});
+
+// drag-and-drop
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  imgInput.files = e.dataTransfer.files; // not always writable; handle via DataTransfer
+  imgMimeType = file.type;
+  document.getElementById('previewName').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    imgBase64 = ev.target.result;
+    imgPreview.src = imgBase64;
+    uploadZone.classList.add('has-img');
+  };
+  reader.readAsDataURL(file);
+});
+
+window.clearImage = function(e) {
+  e.stopPropagation();
+  imgBase64 = '';
+  imgPreview.src = '';
+  uploadZone.classList.remove('has-img');
+  imgInput.value = '';
+};
+
+/* ── Status helpers ── */
+function setStatus(step, state, text) {
+  // step: 1|2|3, state: ''|'active'|'done'|'error'
+  const dot = document.getElementById('s' + step);
+  const txt = document.getElementById('s' + step + '-text');
+  dot.className = 'status-dot ' + state;
+  if (text) txt.textContent = text;
+}
+
+/* ── Submit ── */
+window.submitForm = async function() {
+  if (!imgBase64) { showToast('請先上傳截圖 📸'); return; }
+
+  const btn = document.getElementById('submitBtn');
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  // show status card
+  const card = document.getElementById('statusCard');
+  card.classList.add('show');
+  setStatus(1, 'active', '正在上傳圖片…');
+  setStatus(2, '', '等待 Ollama 辨識圖片…');
+  setStatus(3, '', '等待寫入 Notion…');
+
+  // strip the "data:image/xxx;base64," prefix → raw base64
+  const rawBase64 = imgBase64.split(',')[1];
+  const url = document.getElementById('urlInput').value.trim();
+
+  try {
+    setStatus(1, 'done', '圖片已上傳 ✓');
+    setStatus(2, 'active', '辨識中…');
+
+    const res = await fetch(N8N_WEBHOOK_URL, {
+      method: 'POST',
+      // headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '1',   // ← 加這行
+      },
+      body: JSON.stringify({
+        image_base64: rawBase64,
+        image_mime:   imgMimeType,
+        source_url:   url,
+        submitted_at: new Date().toISOString(),
+      }),
+    });
+
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    setStatus(2, 'done', 'Ollama 辨識完成 ✓');
+    setStatus(3, 'active', '寫入 Notion 中…');
+
+    // n8n handles everything; if it returns we consider Notion done
+    // (optionally read response body for confirmation)
+    await res.json().catch(() => ({}));
+
+    setStatus(3, 'done', '已成功寫入 Notion ✓');
+    btn.classList.remove('loading');
+    btn.classList.add('success');
+    btn.innerHTML = '✅ 完成！';
+
+    showToast('✅ 已送出，n8n 處理中！');
+    setTimeout(() => location.href = 'index.html', 1500);
+
+  } catch (err) {
+    console.error(err);
+    setStatus(2, 'error', '發生錯誤：' + err.message);
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    showToast('❌ 送出失敗，請確認 n8n 是否運行中');
+  }
+};
+
+/* ── Toast ── */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>

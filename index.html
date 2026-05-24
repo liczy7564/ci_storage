@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>靈感收納所</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .brand { font-size: 1.1rem; font-weight: 700; letter-spacing: -.01em; }
+  .brand span { color: var(--accent); }
+  .count-bar {
+    font-size: .75rem;
+    color: var(--text3);
+    padding: 0 2px;
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  .count-bar b { color: var(--text2); font-weight: 500; }
+  .no-result { display: none; }
+  .no-result.show { display: flex; }
+  .list-wrap { display: flex; flex-direction: column; gap: 10px; }
+</style>
+</head>
+<body>
+<div class="app-wrap">
+
+  <!-- top bar -->
+  <header class="topbar">
+    <div class="topbar-title brand">靈感<span>收納所</span></div>
+    <button class="topbar-icon" title="重新整理" onclick="loadData()">↻</button>
+  </header>
+
+  <!-- page body -->
+  <main class="page-body" id="pageBody">
+
+    <!-- search -->
+    <div class="search-wrap">
+      <input type="search" id="searchInput" placeholder="搜尋標題、內文…" autocomplete="off">
+      <span class="search-icon">🔍</span>
+    </div>
+
+    <!-- filter row -->
+    <div class="filter-row">
+      <span class="filter-label" id="filterToggle" onclick="toggleFilter()">
+        主項目：<span id="filterLabelText">全部</span>
+        <span class="arrow">▼</span>
+      </span>
+      <button class="star-filter-btn" id="starBtn" onclick="toggleStarFilter()" title="只看重要">☆</button>
+      <span class="filter-spacer"></span>
+      <button class="sort-btn" onclick="cycleSort()">排序：<span id="sortLabel">最新</span></button>
+    </div>
+
+    <!-- filter panel -->
+    <div class="filter-panel" id="filterPanel">
+      <div>
+        <div class="filter-section-label">主分類</div>
+        <div class="filter-chips" id="catChips">
+          <span class="chip active" data-cat="">全部</span>
+          <span class="chip" data-cat="ai">AI</span>
+          <span class="chip" data-cat="aitool">AI工具</span>
+          <span class="chip" data-cat="paper">論文</span>
+          <span class="chip" data-cat="beauty">美妝</span>
+          <span class="chip" data-cat="buy">想買</span>
+          <span class="chip" data-cat="work">工作</span>
+          <span class="chip" data-cat="other">其他</span>
+        </div>
+      </div>
+      <div>
+        <div class="filter-section-label">標籤篩選（可複選）</div>
+        <div class="filter-chips" id="tagChips"></div>
+      </div>
+    </div>
+
+    <!-- count -->
+    <div class="count-bar" id="countBar"></div>
+
+    <!-- card list -->
+    <div class="list-wrap" id="listWrap"></div>
+
+    <!-- empty state -->
+    <div class="empty-state no-result" id="noResult">
+      <span class="icon">🌿</span>
+      目前沒有符合的項目<br>換個關鍵字或清除篩選試試
+    </div>
+
+  </main>
+
+  <!-- bottom nav -->
+  <nav class="bottom-nav">
+    <a class="nav-item active" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      總覽
+    </a>
+    <a class="nav-item" href="add.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      新增
+    </a>
+    <a class="nav-item" href="edit.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      修改
+    </a>
+    <a class="nav-item" href="date.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      時間
+    </a>
+  </nav>
+</div>
+
+<!-- toast -->
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { getAll, toggleStar, cardHtml, CAT_MAP } from './data.js';
+
+let allData = [];
+let activeCat = '';
+let activeTags = new Set();
+let onlyStarred = false;
+let sortMode = 'newest'; // newest | oldest | cat
+const sortLabels = { newest:'最新', oldest:'最舊', cat:'分類' };
+
+/* ── load & render ── */
+// window.loadData = function() {
+//   allData = getAll();
+//   buildTagChips();
+//   render();
+// }
+window.loadData = async function() {
+  allData = await getAll({ forceRefresh: true });
+  buildTagChips();
+  render();
+}
+
+function buildTagChips() {
+  const tagSet = new Set();
+  allData.forEach(r => (r.tags||[]).forEach(t => tagSet.add(t)));
+  const wrap = document.getElementById('tagChips');
+  wrap.innerHTML = '';
+  tagSet.forEach(t => {
+    const c = document.createElement('span');
+    c.className = 'chip' + (activeTags.has(t) ? ' active' : '');
+    c.dataset.tag = t;
+    c.textContent = '#' + t;
+    c.onclick = () => {
+      if (activeTags.has(t)) activeTags.delete(t);
+      else activeTags.add(t);
+      c.classList.toggle('active');
+      render();
+    };
+    wrap.appendChild(c);
+  });
+}
+
+function render() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  let list = allData.filter(r => {
+    if (activeCat && r.category !== activeCat) return false;
+    if (onlyStarred && !r.starred) return false;
+    if (activeTags.size > 0 && !([...activeTags].every(t => (r.tags||[]).includes(t)))) return false;
+    if (q) {
+      const hay = (r.title + ' ' + r.summary + ' ' + (r.tags||[]).join(' ')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  if (sortMode === 'oldest') list = list.slice().sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  else if (sortMode === 'newest') list = list.slice().sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  else if (sortMode === 'cat') list = list.slice().sort((a,b) => (a.category||'').localeCompare(b.category||''));
+
+  const wrap = document.getElementById('listWrap');
+  const noRes = document.getElementById('noResult');
+  if (list.length === 0) {
+    wrap.innerHTML = '';
+    noRes.classList.add('show');
+  } else {
+    noRes.classList.remove('show');
+    wrap.innerHTML = list.map(r => cardHtml(r)).join('');
+    bindCardEvents(wrap);
+  }
+
+  const countBar = document.getElementById('countBar');
+  countBar.innerHTML = `共 <b>${list.length}</b> 筆` +
+    (activeCat ? `・分類：<b>${CAT_MAP[activeCat]?.label||activeCat}</b>` : '') +
+    (activeTags.size > 0 ? `・標籤：<b>${[...activeTags].join(', ')}</b>` : '') +
+    (onlyStarred ? `・<b>⭐ 重要</b>` : '');
+}
+
+function bindCardEvents(wrap) {
+  // star toggle
+  wrap.querySelectorAll('.card-star').forEach(btn => {
+    btn.onclick = e => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const nowStarred = toggleStar(id);
+      btn.textContent = nowStarred ? '★' : '☆';
+      btn.classList.toggle('starred', nowStarred);
+      btn.closest('.card').classList.toggle('starred', nowStarred);
+      showToast(nowStarred ? '已標記重要 ⭐' : '取消標記');
+      allData = getAll();
+    };
+  });
+  // image click → url
+  wrap.querySelectorAll('.card-img-wrap').forEach(el => {
+    el.onclick = () => {
+      const url = el.dataset.url;
+      if (url && url !== '#') window.open(url, '_blank');
+    };
+  });
+  // card body click → edit
+  wrap.querySelectorAll('.card').forEach(card => {
+    card.querySelector('.card-body').onclick = () => {
+      location.href = 'edit.html?id=' + card.dataset.id;
+    };
+  });
+}
+
+/* ── filter / sort controls ── */
+window.toggleFilter = function() {
+  const panel = document.getElementById('filterPanel');
+  const toggle = document.getElementById('filterToggle');
+  panel.classList.toggle('open');
+  toggle.classList.toggle('open');
+}
+
+document.getElementById('catChips').addEventListener('click', e => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  document.querySelectorAll('#catChips .chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  activeCat = chip.dataset.cat;
+  document.getElementById('filterLabelText').textContent =
+    activeCat ? (CAT_MAP[activeCat]?.label || activeCat) : '全部';
+  render();
+});
+
+window.toggleStarFilter = function() {
+  onlyStarred = !onlyStarred;
+  document.getElementById('starBtn').classList.toggle('active', onlyStarred);
+  document.getElementById('starBtn').textContent = onlyStarred ? '★' : '☆';
+  render();
+}
+
+const sortCycle = ['newest','oldest','cat'];
+window.cycleSort = function() {
+  const idx = (sortCycle.indexOf(sortMode) + 1) % sortCycle.length;
+  sortMode = sortCycle[idx];
+  document.getElementById('sortLabel').textContent = sortLabels[sortMode];
+  render();
+}
+
+document.getElementById('searchInput').addEventListener('input', render);
+
+/* ── toast ── */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+/* ── init ── */
+loadData();
+</script>
+</body>
+</html>
