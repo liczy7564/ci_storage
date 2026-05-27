@@ -2,7 +2,7 @@
 
 const DB_KEY = 'info_db_v1';
 // const N8N_READ_URL = 'http://localhost:5678/webhook-test/get-records';
-const N8N_READ_URL = 'https://duplicate-kentucky-adaptation-layers.trycloudflare.com/webhook/get-records';
+const N8N_READ_URL = 'https://rebate-analyst-athletes-ultimate.trycloudflare.com/webhook/get-records';
 
 /* ── 同步版（給 getById / update / remove / toggleStar 內部用） ── */
 function getAllSync() {
